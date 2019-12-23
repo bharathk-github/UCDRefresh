@@ -1,0 +1,233 @@
+
+//import com.sun.org.apache.bcel.internal.generic.NOP
+
+import groovyx.net.http.RESTClient
+import static groovyx.net.http.ContentType.JSON
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+
+
+
+def slurper = new JsonSlurper()
+/**
+ * Get all applications
+ */
+
+//def path = "C:\\udclient.jar"
+//def cmd = "cmd /c java -jar \"" + path + "\""
+//def weburl = 'http://10.224.86.165:8080/'
+//def usr = 'admin'
+//def pwd = 'admin'
+//println("the path is : " + path)
+
+// CODE FOR TEST -----------*********************------------------
+//String S9command = cmd +
+//        " -weburl "+ weburl +
+//        " -username "+ usr +
+//        " -password "+ pwd +
+//        " getSnapshotVersions  " +
+//        " -application JKEBank "+
+//        " -snapshot SNAPSHOTT1"
+////println "$command"
+//def sout = new StringBuilder()
+//def serr = new StringBuilder()
+//def proc = "$S9command".execute()
+//proc.consumeProcessOutput(sout, serr)
+//proc.waitForOrKill(10000)
+//println(sout)
+
+
+//def s9versions = slurper.parseText(sout.toString())
+def url = 'http://10.224.86.165:8080'
+
+//@Grab (group = 'org.codehaus.groovy.modules.http-builder', module = 'http-builder', version = '0.5.2')
+def getsnap1 = new RESTClient(url)
+getsnap1.auth.basic 'admin', 'admin'
+def getsnap1resp = getsnap1.get(path : 'cli/snapshot/getSnapshotVersions', query:['application':'JKEBank','snapshot':'SNAPSHOTT1'])
+def resp1 = getsnap1resp.getData()
+
+def s9finalver = resp1.desiredVersions.name.toString().replace('[', ' ')
+//s9finalver.each {println("length of version $it is ${it.length()}")}
+def s9finalver1 = s9finalver.replace(']', ' ').replace('-','').trim()
+List<String> s9items = Arrays.asList(s9finalver1.split("\\s*,\\s*"))
+
+
+// CODE FOR PROD -----------*********************------------------
+
+//String s10command = cmd +
+//        " -weburl "+ weburl +
+//        " -username "+ usr +
+//        " -password "+ pwd +
+//        " getSnapshotVersions  " +
+//        " -application JKEBank "+
+//        " -snapshot SNAPSHOTPRD"
+////println "$command"
+//def s10sout = new StringBuilder()
+//def s10serr = new StringBuilder()
+//def s10proc = "$s10command".execute()
+//s10proc.consumeProcessOutput(s10sout, s10serr)
+//s10proc.waitForOrKill(10000)
+//def s10versions = slurper.parseText(s10sout.toString())
+
+def getsnap2 = new RESTClient(url)
+getsnap2.auth.basic 'admin', 'admin'
+def getsnap2resp = getsnap2.get(path : 'cli/snapshot/getSnapshotVersions', query:['application':'JKEBank','snapshot':'SNAPSHOTPRD'])
+def resp2 = getsnap2resp.getData()
+
+
+
+def s10finalver = resp2.desiredVersions.name.toString().replace('[', ' ')
+def s10finalver1 = s10finalver.replace(']', ' ').replace('-','').trim()
+// **************** CODE FOR S10 AND S9 SNANPSHOT VERSION LISTING ********************
+List<String> s10items = Arrays.asList(s10finalver1.split("\\s*,\\s*"))
+def s10map = [:]
+
+s10items.each {itm -> if(itm.length() > 0){s10map.put(itm.toString().substring(0,itm.toString().indexOf('.') ),itm.toString().substring(itm.toString().indexOf('.')+1))} else {println("s10 item not found!")}}
+//s10items.each {itm -> s10map.put(itm.toString().substring(0,itm.toString().indexOf('.') ),itm.toString().substring(itm.toString().indexOf('.')+1))}
+//println("s10map is $s10map")
+def s10mapval =s10map.values().sort()
+//println("s10mapval is $s10mapval")
+// ******************  s10 map inversion **********************************************
+def s10mapinvert = s10map.collectEntries {a -> [(a.value):a.key]}
+
+def s9map = [:]
+s9items.each {itm -> if(itm.length() > 0){s9map.put(itm.toString().substring(0,itm.toString().indexOf('.') ),itm.toString().substring(itm.toString().indexOf('.')+1))} else {println("s9 item not found!")}}
+//s9items.each {itm -> s9map.put(itm.toString().substring(0,itm.toString().indexOf('.') ), itm.toString().substring(itm.toString().indexOf('.')+1))}
+def s9mapval = s9map.values().sort()
+//println("s9mapval is $s9mapval")
+//****** map inversion  for s9  ******************************************************
+def s9mapinvert = s9map.collectEntries {a -> [(a.value):a.key]}
+
+
+
+//**************** CODE TO COMPARE VERSION LIST GENERATED AND AVAILABLE IN S9MAPVAL AND S10MAPVAL
+
+List<String> s9mapvalcomp = new ArrayList<String>()
+
+
+s9mapvalcomp = s9mapval.each {s9mapvalcomp.add(it)}
+def common = []
+def unique = []
+def unique1 = []
+
+s9mapval.each {s10mapval.contains(it)? "${common.add(it)}" : "${unique.add(it)}"}
+s10mapval.each {common.contains(it)?  println(" ") : "${unique1.add(it)}"}
+
+unique.addAll(unique1)
+println("before sort $unique")
+unique.sort()
+println("after sort $unique")
+
+
+def depversions = [:]
+unique.each {s9mapinvert.containsKey(it)? depversions.put(it, s9mapinvert[it] ):println(" ")}
+unique1.each {s10mapinvert.containsKey(it)? depversions.put(it, s10mapinvert[it] ):println(" ")}
+//println("depversions cointains $depversions :: teh class is ${depversions.getClass()}")
+def deployvers = []
+depversions.each{it -> deployvers.add("${it.value}"+"."+"${it.key}")}
+println("$deployvers")
+deployvers.each{println("${it.toString().indexOf('.')}")}
+def deployversion = []
+deployvers.each{deployversion.add("${it.toString().substring(0,it.toString().indexOf('.') + 9) + "-" + it.toString().substring(it.toString().indexOf('.') + 9,it.toString().size())}")}
+println(deployversion.sort())
+
+
+// following is to create snapshot
+
+
+def versionlist = deployversion.sort()
+
+
+//@Grab (group = 'org.codehaus.groovy.modules.http-builder', module = 'http-builder', version = '0.5.0')
+def client = new RESTClient(url)
+client.auth.basic 'admin', 'admin'
+def b =[]
+def outputdeployversoin1 = [:]
+for(def i=0; i< versionlist.size();i++){
+    b.add(["Mortgage": versionlist[i]])
+}
+
+def version = [:]
+version.put("name", "RESTSnapshot3")
+
+version.put("application", "JKEBank")
+version.put("description", "Requesting deployment")
+version["versions"] = b
+
+def jsonObj = JsonOutput.toJson(version)
+println(jsonObj)
+
+///******** CODE BELOW  WILL BE COMMENTED ****************** /////
+//
+//String ctrsnapshot = cmd +
+//        " -weburl "+ weburl +
+//        " -username "+ usr +
+//        " -password "+ pwd +
+//        " createSnapshot   " +
+//        " jsonObj "
+//
+////println "$command"
+//def sout2 = new StringBuilder()
+//def serr2 = new StringBuilder()
+//def proc2 = "$ctrsnapshot".execute()
+//proc2.consumeProcessOutput(sout2, serr2)
+//proc2.waitForOrKill(10000)
+//println(sout2)
+
+///******** CODE ABOVE  WILL BE UNCOMMENTED ****************** /////
+
+// the following code is to create snanoshot using REST
+try {
+    def response = client.put(path: "/cli/snapshot/createSnapshot",
+            contentType: JSON,
+            body: jsonObj,
+            headers: [Accept: 'application/json'])
+    println("JSON value is $jsonObj")
+    println("Status: " + response.status)
+}catch(net.sf.json.JSONException a){
+    println()
+}
+
+//create snanoshot using REST ends here
+
+
+
+// working code here
+
+
+// TRIAL CODE HERE
+
+
+//def outputdeployversoin = "20170824-21013"
+
+
+///******** CODE WILL BE UNCOMMENTED ****************** /////
+
+//)
+
+
+// REQUEST UCD APPLICATION PROCESS BELOW
+def version2 = [:]
+version2.put("application", "JKEBank")
+version2.put("description", "Requesting deployment")
+version2.put("applicationProcess", "Deploy Mortgage Application")
+version2.put("environment", "T1")
+version2.put("onlyChanged", "false")
+version2.put("snapshot", "RESTSnapshot3")
+
+
+def jsonObj2 = JsonOutput.toJson(version2)
+//println("jsonObj1 is $jsonObj1")
+println("jsonObj is $jsonObj2")
+try {
+    def response = client.put(path: "/cli/applicationProcessRequest/request",
+            contentType: JSON,
+            body: jsonObj2,
+            headers: [Accept: 'application/json'])
+    println("JSON value is $jsonObj2")
+    println("Status: " + response.status)
+}catch(net.sf.json.JSONException a){
+    println()
+}
+
+///******** CODE WILL BE UNCOMMENTED ****************** /////
