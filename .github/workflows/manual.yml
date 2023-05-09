@@ -30,6 +30,19 @@ jobs:
     # Runs a single command using the runners shell
     - name: Send greeting
       run: echo "Hello ${{ inputs.name }}"
+    - name: call REST
+      run: | 
+            $uri = 'https://10.134.119.72:8443/cli/applicationProcessRequest/request'
+            [System.Net.ServicePointManager] ServerCertificateValidationCallback = {$true}
+            Invoke-RestMethod -Method 'Put' -Uri $uri -Body '{
+                "application":"APP_ZSEARCH",
+                "applicationProcess":"DEPLOY_PARTIAL_COMP",
+                "environment":"APP-DEV",
+                "versions":[{
+                    "version":"pds_ps_de_dir",
+                    "component":"COMP_ZSEARCH"
+                }]
+            }' -UseBasicParsing -Headers @{"Authorization" = "Basic $( [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("admin:admin")))"} 
     - name: PowerShell script
       # You may pin to the exact commit or the version.
       # uses: Amadevus/pwsh-script@97a8b211a5922816aa8a69ced41fa32f23477186
@@ -47,3 +60,5 @@ jobs:
                         "component":"COMP_ZSEARCH"
                     }]
                 }' -UseBasicParsing -Headers @{"Authorization" = "Basic $( [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("admin:admin")))"}  
+      
+      
